@@ -28,6 +28,7 @@ class Card():
         self.card_name2 = "| {} |".format(suit_name)
         self.card_name3 = "|{:>3}|".format(rank_name)
         self.rank_name = rank_name
+        self.suit_value = suit
 
     def __str__(self):
             return "{}\n{}\n{}" .format(self.card_name1, self.card_name2, self.card_name3)
@@ -100,6 +101,9 @@ class Player():
         self.player = name
         self.hand = []
        
+    def is_allowed(self, inp_card, top_card):
+        return inp_card.suit==top_card.suit_value or inp_card.rank==top_card.rank
+
     def add_card(self, denoting_card):
         self.hand.append(denoting_card)
 
@@ -122,7 +126,23 @@ class Player():
                 hand_str += item
             hand_str += "\n"
         return hand_str
-
+    
+    def change_value_of_8(self, card, choice):
+        if choice == "1":
+            new_suit = "♠"
+            card.suit_value = "S"
+        elif choice == "2":
+            new_suit = "♣"
+            card.suit_value = "C"
+        elif choice == "3":
+            new_suit = "♥"
+            card.suit_value = "H"
+        else:
+            new_suit = "♦"
+            card.suit_value = "D"
+        card.card_name1 = "|0  |"
+        card.card_name2 = "| {} |".format(new_suit)
+        card.card_name3 = "|  0|"
 
 
 class PlayableCharecter(Player):
@@ -171,6 +191,7 @@ class PlayableCharecter(Player):
                 self.print_status(remainder)
             elif inp.upper() == "P" and draw_count == 3:
                 inp_card = []
+                again = True
             elif inp.upper() == "S":
                 self.sort_hand()
                 self.print_status(remainder)
@@ -209,21 +230,13 @@ class PlayableCharecter(Player):
             elif card.rank == 8:
                 if len(inp_card_list) == 1:
                     choice = self.print_choice()
-                    if choice == "1":
-                        card_list = [Card(0, "S")]
-                    elif choice == "2":
-                        card_list = [Card(0, "C")]
-                    elif choice == "3":
-                        card_list = [Card(0, "H")]
-                    elif choice == "4":
-                        card_list = [Card(0, "D")]
+                    self.change_value_of_8(card, choice)    
                 else:
                     return False
             elif self.is_allowed(card, top_card) is False:
                 return False
             card_list.append(card)
             top_card = Card(card.rank)
-
         for card in card_list:
             self.remove_card(card)
         return card_list
@@ -244,62 +257,50 @@ class PlayableCharecter(Player):
         print(self)
         print("'D' to draw card,     'P' to pass,      'S' to sort cards")
 
-    def is_allowed(self, inp_card, top_card):
-        return inp_card.suit==top_card.suit or inp_card.rank==top_card.rank
+
 
 class NPC(Player):
     def __init__(self, player):
         Player.__init__(self, player)
 
     def print_status(self, remainder):
-        lenght = 0
-        for i in range( len(self.hand)):    
-            if self.hand[i] != "blk":
-                lenght = i+1
-        print(self.player + "(NPC)" + " has "+ str(lenght) + " cards left")
-        
+        print(self.player + "(NPC)" + " has "+ str(len(self.hand)) + " cards left")
 
-    def available_cards(self, top_card):
+    def get_available_cards(self, top_card):
         available_card_list = []
-        if len(top_card) == 1:
-            suit_available = top_card
-            rank_available = ""
-        else:
-            suit_available = top_card[-1]
-            rank_available = top_card[:-1]
         for card in self.hand:
-            if card[-1] == suit_available or card[:-1] == rank_available or card[:-1] == "8":
+            if self.is_allowed(card, top_card) or card.rank == 8:
                 available_card_list.append(card)
         return available_card_list
 
 class Easy(NPC):
     def __init__(self, player):
         Player.__init__(self, player)
+        self.available_card = []
 
     def player_turn(self, remainder, deck):
-        self.available_card = self.available_cards(remainder.all_card[-1])
+        self.available_card = self.get_available_cards(remainder.get_card())
         draw_counter = 0
-        while draw_counter < 3:        
-            if len(self.available_card) == 0:
-                    self.add_card(deck.deal())
-                    draw_counter +=1
-                    self.available_card = self.available_cards(remainder.all_card[-1])
-            else:
-                draw_counter = 5
+        while len(self.available_card) == 0 and draw_counter < 3:        
+            self.add_card(deck.deal())
+            draw_counter +=1
+            card = self.hand[-1]
+            if self.is_allowed(card, remainder.get_card()) or card.rank == 8:
+                self.available_card.append(card)
         if draw_counter == 3:
-            print("pass")
-            choice = "blk"
+            print("NPC passed")
         else:
-            choice = self.pick_a_card(deck)
+            choice = self.pick_a_card()
             remainder.add_card(choice)
         self.print_status(remainder)
 
-    def pick_a_card(self, deck):
-        choice = random.choice(self.available_card)
-        self.remove_card(choice)
-        if choice[:-1] == "8":
+    def pick_a_card(self):
+        card = self.available_card[0]
+        self.remove_card(card)
+        if card.rank == 8:
             choice = random.choice(["S","C","H","D"])
-        return choice
+            self.change_value_of_8(card, choice)
+        return card
         
 def bua_til_leik():
     #random.seed(10)
@@ -367,7 +368,7 @@ def bua_til_leik():
     # while inp.isdigit() == False:
     #     inp = input("how many card on hand? ")
 
-    inp = 10
+    inp = 3
     for _ in range(int(inp) ):
         for player in players:
             player.add_card(deck.deal())
