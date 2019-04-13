@@ -64,40 +64,27 @@ class Deck():
         self.deck_list = [Card(rank, suit) for rank in range(1,14) for suit in "SHDC"]
 
     def shuffle(self):
-        return random.shuffle(self.deck_list)
+        random.shuffle(self.deck_list)
 
-    def deal(self):
+    def deal(self, remainder = None):
+        if len(self.deck_list) == 0:
+            self.reshuffle(remainder)
+            if len(self.deck_list) == 0:
+                return None
         card = self.deck_list[0]
         del self.deck_list[0]
         return card
+    
+    def reshuffle(self, remainder):
+        top_card = remainder.get_card()
+        self.deck_list = remainder.cards[:-1]
+        self.shuffle()
+        if top_card.rank == 8:
+            top_card = Card(8, top_card.suit)
+        remainder.cards = [top_card]
 
-    def __str__(self):
-        deck_str = ""
-        for index, card in enumerate(self.deck_list):
-            if "11" in card:
-                card = "J" + card[2:]
-            elif "12" in card:
-                card = "Q" + card[2:]
-            elif "13" in card:
-                card = "K" + card[2:]
-            elif "1" in card and card[1] in "SCDH":
-                card = "A" + card[1:]
-            
-            if card[-1] == "H":
-                card = card[:-1]+"♥"
-            elif card[-1] == "D":
-                card = card[:-1]+"♦"
-            elif card[-1] == "C":
-                card = card[:-1]+"♣"
-            elif card[-1] == "S":
-                card = card[:-1]+"♠"
-            
-                
-            deck_str += "|{:<3}|\n| {} |\n|{:>3}|\n" .format(card[:-1], card[-1], card[:-1])
-            if (index+1) % 13 == 0 and index !=51:
-                deck_str += "\n"
-
-        return deck_str
+    def __len__(self):
+        return len(self.deck_list)
 
 class Player():
     NUMBER_CARDS = 30
@@ -110,7 +97,8 @@ class Player():
         return inp_card.suit==top_card.suit_value or inp_card.rank==top_card.rank
 
     def add_card(self, denoting_card):
-        self.hand.append(denoting_card)
+        if denoting_card is not None:
+            self.hand.append(denoting_card)
 
     def remove_card(self, denoting_card):
         self.hand.remove(denoting_card)
@@ -197,9 +185,14 @@ class PlayableCharecter(Player):
             inp = input("choose a card: ")
             if inp.upper() == "D":
                 if draw_count < 3:
-                    self.add_card(deck.deal())
-                    draw_count += 1
-                    self.print_status(remainder)
+                    prev_size = len(self.hand)
+                    self.add_card(deck.deal(remainder))
+                    if prev_size == len(self.hand):
+                        print("No available cards in the deck nor in the remainder")
+                        draw_count = 3
+                    else:
+                        draw_count += 1
+                        self.print_status(remainder)
                 else:
                     print("Can't draw any more cards")
             elif inp.upper() == "P":
@@ -276,9 +269,10 @@ class PlayableCharecter(Player):
 class NPC(Player):
     def __init__(self, player):
         Player.__init__(self, player)
+        self.available_card = []
 
     def print_status(self, remainder):
-        print(self.player + "(NPC)" + "  now has "+ str(len(self.hand)) + " cards left")
+        print(self.player +" now has "+ str(len(self.hand)) + " cards left")
 
     def get_available_cards(self, top_card):
         available_card_list = []
@@ -286,104 +280,98 @@ class NPC(Player):
             if self.is_allowed(card, top_card) or card.rank == 8:
                 available_card_list.append(card)
         return available_card_list
-
-class Easy(NPC):
-    def __init__(self, player):
-        Player.__init__(self, player)
-        self.available_card = []
-
-    def player_turn(self, remainder, deck):
+    
+    def draw_cards_if_needed(self, remainder, deck):
         self.available_card = self.get_available_cards(remainder.get_card())
         draw_counter = 0
-        while len(self.available_card) == 0 and draw_counter < 3:        
-            self.add_card(deck.deal())
+        while len(self.available_card) == 0 and draw_counter < 3:   
+            prev_size = len(self.hand)
+            self.add_card(deck.deal(remainder)) 
             draw_counter +=1
+            if prev_size == len(self.hand):  
+                draw_counter = 3  
             card = self.hand[-1]
             if self.is_allowed(card, remainder.get_card()) or card.rank == 8:
                 self.available_card.append(card)
         if draw_counter == 3:
-            print("NPC passed")
-        else:
-            choice = self.pick_a_card()
-            remainder.add_card(choice)
+            print(self.player, "passed")
+
+class Easy(NPC):
+    def __init__(self, player):
+        Player.__init__(self, player)
+        
+    def player_turn(self, remainder, deck):
+        self.draw_cards_if_needed(remainder, deck)
+        if len(self.available_card) > 0:
+            card = self.available_card[0]
+            self.remove_card(card)
+            if card.rank == 8:
+                choice = random.choice(["S","C","H","D"])
+                self.change_value_of_8(card, choice)
+            
+            remainder.add_card(card)
+        self.print_status(remainder)
+    
+class Hard(NPC):
+    def __init__(self, player):
+        Player.__init__(self, player)
+        
+    def player_turn(self, remainder, deck):
+        self.draw_cards_if_needed(remainder, deck)
+        if len(self.available_card) > 0:
+            card = self.available_card[0]
+            self.remove_card(card)
+            if card.rank == 8:
+                choice = random.choice(["S","C","H","D"])
+                self.change_value_of_8(card, choice)
+            
+            remainder.add_card(card)
         self.print_status(remainder)
 
-    def pick_a_card(self):
-        card = self.available_card[0]
-        self.remove_card(card)
-        if card.rank == 8:
-            choice = random.choice(["S","C","H","D"])
-            self.change_value_of_8(card, choice)
-        return card
-        
 def bua_til_leik():
-    #random.seed(10)
-    namelist = []
     deck = Deck()
     deck.shuffle()
     players = []
     
-    player1 = PlayableCharecter("P1")
-    players.append(player1)
+    is_preset = input("Do you want preset game (Y/N): ").upper()
+    if is_preset == "Y":
+        player1 = PlayableCharecter("Player1")
+        players.append(player1)
+        npc1 = Easy("NPC1")
+        players.append(npc1)
+        nr_cards = 5
+    else:
 
-    # inp = ""
-    # while inp.isdigit() != True:
-        # inp = input("how many playable charecters? (max 5) ")
-    # inp = int(inp)
-    # for i in range(inp):
-    #     print("player nr." + str(i+1) , "name?")
-    #     name = input()
-    #     namelist.append(name)
+        while True:
+            p_inp = input("How many playable charecters: ")
+            if p_inp.isdigit()  and  0 <= int(p_inp) < 21:
+                break
+            else:
+                print("Invalid input")
+        p_inp = int(p_inp)
+        for i in range(p_inp):
+            players.append(PlayableCharecter("Player"+str(i+1)))
 
-    # if inp >= 1:
-    #     player1 = PlayableCharecter(namelist[0])
-    #     players.append(player1)
-    # if inp >= 2:
-    #     player2 = PlayableCharecter(namelist[1])
-    #     players.append(player2)
-    # if inp >= 3:
-    #     player3 = PlayableCharecter(namelist[2])
-    #     players.append(player3)
-    # if inp >= 4:
-    #     player4 = PlayableCharecter(namelist[3])
-    #     players.append(player4)
-    # if inp >= 5:
-    #     player5 = PlayableCharecter(namelist[4])
-    #     players.append(player5)
+        while True:
+            n_inp = input("How many NPC: ")
+            if n_inp.isdigit() and 0 < (int(n_inp)+p_inp) < 21:
+                break
+            else:
+                print("Invalid input")
+        n_inp = int(n_inp)
+        for i in range(n_inp):
+            players.append(Hard("NPC"+str(i+1)))
 
-    namelist = []
-    npc1 = Easy("NPC1")
-    players.append(npc1)
-    # inp = ""
-    # while inp.isdigit() != True:
-    #     inp = input("how many NPC? (max 5) ")
-    # for i in range(int(inp)):
-    #     print("NPC nr." + str(i+1) , "name?")
-    #     name = input()
-    #     namelist.append(name)
-    # inp = int(inp)
-    # if inp >= 1:
-    #     npc1 = Easy(namelist[0])
-    #     players.append(npc1)
-    # if inp >= 2:
-    #     npc2 = Easy(namelist[1])
-    #     players.append(npc2)
-    # if inp >= 3:
-    #     npc3 = Easy(namelist[2])
-    #     players.append(npc3)
-    # if inp >= 4:
-    #     npc4 = Easy(namelist[3])
-    #     players.append(npc4)
-    # if inp >= 5:
-    #     npc5 = Easy(namelist[4])
-    #     players.append(npc5)
+        nr_cards = ""
 
-    # inp = ""
-    # while inp.isdigit() == False:
-    #     inp = input("how many card on hand? ")
-
-    inp = 3
-    for _ in range(int(inp) ):
+        max_nr_cards = 52//(n_inp+p_inp)
+        while True:
+            nr_cards = input("How many card on hand? (MAX {}): ".format(max_nr_cards))
+            if nr_cards.isdigit() and int(nr_cards) <= max_nr_cards:
+                break
+            else:
+                print("Invalid input")
+    for _ in range(int(nr_cards)):
         for player in players:
             player.add_card(deck.deal())
     remainder = Remainder(deck.deal())
@@ -393,7 +381,7 @@ def main():
     deck, remainder, players = bua_til_leik()
     again = True
     while again == True:
-        for player in players:
+        for player in players:              
             player.player_turn(remainder, deck)
             if len(player.hand) == 0:
                 print("PLAYER", player.player, "WON!!!!!!!")
