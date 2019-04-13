@@ -17,18 +17,23 @@ class Card():
             elif rank == 13:
                 rank_name = "K"
         if suit == "H":
+            self.value = rank 
             suit_name ="♥"
         elif suit == "D":
+            self.value = rank + 13 
             suit_name = "♦"
         elif suit == "C":
+            self.value = rank + 13 * 2
             suit_name ="♣"
         elif suit == "S":
+            self.value = rank + 13 * 3
             suit_name = "♠"
         self.card_name1 = "|{:<3}|".format(rank_name)
         self.card_name2 = "| {} |".format(suit_name)
         self.card_name3 = "|{:>3}|".format(rank_name)
         self.rank_name = rank_name
         self.suit_value = suit
+        
 
     def __str__(self):
             return "{}\n{}\n{}" .format(self.card_name1, self.card_name2, self.card_name3)
@@ -140,42 +145,47 @@ class Player():
         else:
             new_suit = "♦"
             card.suit_value = "D"
-        card.card_name1 = "|0  |"
+        card.card_name1 = "|   |"
         card.card_name2 = "| {} |".format(new_suit)
-        card.card_name3 = "|  0|"
+        card.card_name3 = "|   |"
 
 
 class PlayableCharecter(Player):
     def __init__(self, player):
         Player.__init__(self, player)
-
-    def sort_hand(self):
-        s=[]
-        c=[]
-        h=[]
-        d=[]
-        blk=[]
-        for card in self.hand:
-            suit = card[-1]
-            if suit == "S":
-                s.append(card)
-            elif suit == "C":
-                c.append(card)
-            elif suit == "H":
-                h.append(card)
-            elif suit == "D":
-                d.append(card)
+    
+    def merge_sort(self, arr):
+        if len(arr) == 1:
+            return arr
+        mid = len(arr) // 2
+        left = self.merge_sort(arr[:mid])
+        right = self.merge_sort(arr[mid:])
+        
+        i = 0
+        j = 0
+        k = 0
+        while i < len(left) and j < len(right):
+            if left[i].value < right[j].value:
+                arr[k] = left[i]
+                i += 1
             else:
-                blk.append(card)
-        s.sort(key=len)
-        c.sort(key=len)
-        h.sort(key=len)
-        d.sort(key=len)
-        d.sort(key=len)
-        total = [s, c, h, d, blk]
-        self.hand = [card for a_list in total for card in a_list]
+                arr[k] = right[j]
+                j += 1
+            k += 1
+
+        while i < len(left):
+            arr[k] = left[i]
+            i += 1
+            k += 1
+
+        while j < len(right):
+            arr[k] = right[j]
+            j += 1
+            k += 1
+        return arr
 
     def player_turn(self, remainder, deck):
+        self.print_status(remainder)
         card_list = self.get_inp(remainder.get_card(), deck, remainder)
         for card in card_list:
             remainder.add_card(card)
@@ -185,15 +195,21 @@ class PlayableCharecter(Player):
         draw_count = 0
         while again is False:
             inp = input("choose a card: ")
-            if inp.upper() == "D" and draw_count < 3:
-                self.add_card(deck.deal())
-                draw_count += 1
-                self.print_status(remainder)
-            elif inp.upper() == "P" and draw_count == 3:
-                inp_card = []
-                again = True
+            if inp.upper() == "D":
+                if draw_count < 3:
+                    self.add_card(deck.deal())
+                    draw_count += 1
+                    self.print_status(remainder)
+                else:
+                    print("Can't draw any more cards")
+            elif inp.upper() == "P":
+                if draw_count == 3:
+                    inp_card = []
+                    again = True
+                else:
+                    print("You need to draw {} more cards to be able to pass".format(3-draw_count))
             elif inp.upper() == "S":
-                self.sort_hand()
+                self.hand = self.merge_sort(self.hand)
                 self.print_status(remainder)
             else:
                 inp_card = self.test_card_inp(inp, top_card)
@@ -252,19 +268,17 @@ class PlayableCharecter(Player):
     def print_status(self, remainder):
         print(self.player, "Turn\n")
         print(remainder)
-        print("Too put more then 2 card use ' ' between the card")
+        print("Too use more then 2 card use ' ' between the card")
         print("Your hand:")
         print(self)
         print("'D' to draw card,     'P' to pass,      'S' to sort cards")
-
-
 
 class NPC(Player):
     def __init__(self, player):
         Player.__init__(self, player)
 
     def print_status(self, remainder):
-        print(self.player + "(NPC)" + " has "+ str(len(self.hand)) + " cards left")
+        print(self.player + "(NPC)" + "  now has "+ str(len(self.hand)) + " cards left")
 
     def get_available_cards(self, top_card):
         available_card_list = []
@@ -380,12 +394,12 @@ def main():
     again = True
     while again == True:
         for player in players:
-            player.print_status(remainder)  # bæta við npc
             player.player_turn(remainder, deck)
             if len(player.hand) == 0:
                 print("PLAYER", player.player, "WON!!!!!!!")
                 again = False
                 break
+            print("_"*80)
 
 
 main()
