@@ -3,7 +3,7 @@ import random
 class Card():
     def __init__(self, rank = 0, suit = ""):
     
-        rank_list = ["1","2","3","4","5","6","7","8","9","10","11","12","13","A","a","J","j","Q","q","K","k"]
+        rank_list = ["1","2","3","4","5","6","7","8","9","10","11","12","13","A","J","Q","K"]
         suit_list = ["S","C","D","H","s","c","d","h"]
         if rank in rank_list and suit in suit_list:
             if rank.isdigit():
