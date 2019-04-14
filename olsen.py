@@ -34,6 +34,9 @@ class Card():
         self.rank_name = rank_name
         self.suit_value = suit
         
+    def fix_8(self):
+        self.__init__(8, self.suit)
+
 
     def __str__(self):
             return "{}\n{}\n{}" .format(self.card_name1, self.card_name2, self.card_name3)
@@ -44,6 +47,10 @@ class Remainder():
         self.nr_of_card_types = {"H": 0, "S": 0, "D": 0, "C": 0, "8": 0}
 
     def add_card(self, card):
+        if len(self.cards) > 0:
+            old_card = self.cards[-1]
+            if old_card.rank == 8:
+                old_card.fix_8()
         self.cards.append(card)
         if card.rank == 8:
             self.nr_of_card_types["8"] += 1
@@ -104,6 +111,7 @@ class Player():
     def __init__ (self, name):
         self.player = name
         self.hand = []
+        self.difficulty = ""
         self.nr_of_card_types = {"H": 0, "S": 0, "D": 0, "C": 0, "8": 0, "2":0, "3":0, "4":0}
        
     def is_allowed(self, inp_card, top_card):
@@ -142,13 +150,20 @@ class Player():
                             denoting_card.priority += 1
                 if same_rank_count == 1:
                     self.nr_of_card_types["2"] += 1
+
                 elif same_rank_count == 2:
                     self.nr_of_card_types["2"] -= 1
                     self.nr_of_card_types["3"] += 1
                     if self.nr_of_card_types["3"] > 1:
                         denoting_card.priority = 500
                         same_rank_count = 0
+                        
                 elif same_rank_count == 3:
+                    if self.nr_of_card_types["8"] > 0:
+                        for card in self.hand:
+                            if card.rank == 8:
+                                card.priority = 570
+
                     self.nr_of_card_types["3"] -= 1
                     self.nr_of_card_types["4"] += 1
                     if self.nr_of_card_types["4"] > 1:
@@ -390,6 +405,7 @@ class NPC(Player):
 class Medium(NPC):
     def __init__(self, player):
         Player.__init__(self, player)
+        self.difficulty = "medium"
         
     def player_turn(self, remainder, deck):
         self.draw_cards_if_needed(remainder, deck)
@@ -412,6 +428,7 @@ class Medium(NPC):
 class Easy(NPC):
     def __init__(self, player):
         Player.__init__(self, player)
+        self.difficulty = "easy"
         
     def player_turn(self, remainder, deck):
         self.draw_cards_if_needed(remainder, deck)
@@ -429,6 +446,7 @@ class Easy(NPC):
 class Hard(NPC):
     def __init__(self, player):
         Player.__init__(self, player)
+        self.difficulty = "hard"
         
     def best_choice_list(self):
         s = self.nr_of_card_types["S"]
@@ -486,22 +504,124 @@ class Hard(NPC):
         if self.can_win() or len(self.hand) == 1:
             print("Óslen")
 
+class VeryHard(NPC):
+    def __init__(self, player):
+        Player.__init__(self, player)
+        self.difficulty = "imp"
+    
+    def draw_cards_if_needed_imp(self, remainder, deck, skip = False):
+        self.available_card = self.get_available_cards(remainder.get_card(), skip)
+        draw_counter = 0
+        if self.can_win() is False:
+            while len(self.available_card) == 0 and draw_counter < 3:   
+                prev_size = len(self.hand)
+                self.add_card(deck.deal(remainder), remainder) 
+                draw_counter += 1
+                if prev_size == len(self.hand):  
+                    draw_counter = 3  
+                card = self.hand[-1]
+                if self.is_allowed(card, remainder.get_card()) or (card.rank == 8 and self.nr_of_card_types["8"] > 1):
+                    self.available_card.append(card)
+            if draw_counter == 3:
+                print(self.player, "passed")
+
+            while draw_counter < 3:
+                again = False
+                if len(deck.deck_list) > 0:
+                    deck_card = deck.deck_list[0]
+                    if deck_card.rank == 8:
+                        self.add_card(deck.deal(remainder), remainder)
+                        draw_counter += 1
+                        again = True
+                    else:
+                        for card in self.hand:
+                            if card.rank == deck_card.rank:
+                                self.add_card(deck.deal(remainder), remainder)
+                                draw_counter += 1
+                                again = True
+                                break
+                    if again is False:
+                        draw_counter = 3
+                else:
+                    draw_counter = 3
+        
+    def best_choice_list(self):
+        s = self.nr_of_card_types["S"]
+        c = self.nr_of_card_types["C"]
+        d = self.nr_of_card_types["D"]
+        h = self.nr_of_card_types["H"]
+        lis = [s,c,d,h]
+        lis2 = []
+        lis.sort()
+        for i in range(4):
+            if s == lis[i] and "S" not in lis2:
+                lis2.append("S")
+            elif c == lis[i] and "C" not in lis2:
+                lis2.append("C")
+            elif d == lis[i] and "D" not in lis2:
+                lis2.append("D")
+            else:
+                lis2.append("H")
+        return lis2
+
+    def player_turn(self, remainder, deck):
+        self.draw_cards_if_needed_imp(remainder, deck, True)
+        if len(self.available_card) > 0:
+            choice_list = self.best_choice_list()
+            min_card = self.available_card[0]
+            for card in self.available_card:
+                if card.priority < min_card.priority:
+                    min_card = card
+            card_list = [min_card]
+            if min_card.rank == 8:
+                choice = choice_list[0]
+                self.change_value_of_8(min_card, choice)
+                self.remove_card(min_card)
+                remainder.add_card(min_card)
+
+            else:
+                for card in self.hand:
+                    if min_card.rank == card.rank and min_card is not card:
+                        card_list.append(card)
+                if len(card_list) > 1:
+                    self.nr_of_card_types[str(len(card_list))] -= 1
+                    if len(card_list) > 2:
+                        for i in range(1, len(card_list)):
+                            for j in range(3):
+                                if card_list[i].suit == choice_list[j]:
+                                    top_card = card_list[i]
+                                    card_list.remove(top_card)
+                                    card_list.append(top_card)
+                for card in card_list:
+                    self.remove_card(card)
+                    remainder.add_card(card)
+
+        self.print_status(remainder)
+        if self.can_win() or len(self.hand) == 1:
+            print("Óslen")
+
 def bua_til_leik():
     deck = Deck()
     deck.shuffle()
     players = []
     
-    #is_preset = input("Do you want preset game (Y/N): ").upper()
-    is_preset = "Y"
+    is_preset = input("Do you want preset game (Y/N): ").upper()
     if is_preset == "Y":
-        #player1 = PlayableCharecter("Player1")
-        #players.append(player1)
-        npc1 = Hard("NPC1")
-        players.append(npc1)
+        player1 = PlayableCharecter("Player1")
+        players.append(player1)
+        npc = Hard("NPC(hard)")
+        players.append(npc)
+        nr_cards = 5
+
+    elif is_preset == "T":
+        npc1 = VeryHard("NPC v_hard")
+        npc2 = Hard("NPC hard")
         npc3 = Medium("NPC medium")
-        players.append(npc3)
-        npc2 = Easy("NPC easy")
+        npc4 = Easy("NPC easy")
+        players.append(npc1)
         players.append(npc2)
+        players.append(npc3)
+        players.append(npc4)
         nr_cards = 10
     else:
         while True:
@@ -521,8 +641,27 @@ def bua_til_leik():
             else:
                 print("Invalid input")
         n_inp = int(n_inp)
+        d_inp = ""
+        print("Choose difficulty")
+        print("'1' for easy")
+        print("'2' for medium")
+        print("'3' for HARD")
+        print("'4' for VERY HARD!!!")
+        while True: 
+            d_inp = input(": ")
+            if d_inp.isdigit() and 0 < int(d_inp) < 5:
+                break
+            else:
+                print("Invalid input")
         for i in range(n_inp):
-            players.append(Hard("NPC"+str(i+1)))
+            if d_inp == "1":
+                players.append(Easy("NPC"+str(i+1)))
+            elif d_inp == "2":
+                players.append(Medium("NPC"+str(i+1)))
+            elif d_inp == "3":
+                players.append(Hard("NPC"+str(i+1)))
+            else:
+                players.append(VeryHard("NPC"+str(i+1)))
 
         nr_cards = ""
 
@@ -540,30 +679,33 @@ def bua_til_leik():
     return deck, remainder, players
 
 def main():
-    easy_wins = 0
-    hard_wins = 0
-    medium_wins = 0
-    for _ in range(1000):
-        deck, remainder, players = bua_til_leik()
-        again = True
-        while again == True:
-            for player in players:              
-                player.player_turn(remainder, deck)
-                if len(player.hand) == 0:
-                    print("PLAYER", player.player, "WON!!!!!!!")
-                    if player.player == "NPC1":
-                        hard_wins += 1
-                    elif player.player == "NPC medium":
-                        medium_wins += 1
-                    else:
-                        easy_wins += 1
-                    again = False
-                    break
-
-                print("_"*80)
-    print("easy", easy_wins)
-    print("medium", medium_wins)
-    print("hard", hard_wins)
+    # easy_wins = 0
+    # hard_wins = 0
+    # medium_wins = 0
+    # imp_wins = 0
+    # for _ in range(1000):
+    deck, remainder, players = bua_til_leik()
+    again = True
+    while again == True:
+        for player in players:           
+            player.player_turn(remainder, deck)
+            if len(player.hand) == 0:
+                print("PLAYER", player.player, "WON!!!!!!!")
+                # if player.player == "NPC hard":
+                #     hard_wins += 1
+                # elif player.player == "NPC medium":
+                #     medium_wins += 1
+                # elif player.player == "NPC easy":
+                #     easy_wins += 1
+                # else:
+                #     imp_wins += 1
+                again = False
+                break
+            print("_"*80)
+    # print("easy", easy_wins)
+    # print("medium", medium_wins)
+    # print("hard", hard_wins)
+    # print("imp", imp_wins)
 
 
 main()
