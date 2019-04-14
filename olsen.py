@@ -41,9 +41,21 @@ class Card():
 class Remainder():
     def __init__(self, card, next = None):
         self.cards = [card]
+        self.nr_of_card_types = {"H": 0, "S": 0, "D": 0, "C": 0, "8": 0}
 
     def add_card(self, card):
         self.cards.append(card)
+        if card.rank == 8:
+            self.nr_of_card_types["8"] += 1
+        else:
+            if card.suit == "H":
+                self.nr_of_card_types["H"] += 1
+            elif card.suit == "S":
+                self.nr_of_card_types["S"] += 1
+            elif card.suit == "C":
+                self.nr_of_card_types["C"] += 1
+            else:
+                self.nr_of_card_types["D"] += 1  
 
     def see_remainder(self):
         deck_str = ""
@@ -81,26 +93,88 @@ class Deck():
         self.shuffle()
         if top_card.rank == 8:
             top_card = Card(8, top_card.suit)
-        remainder.cards = [top_card]
+        remainder.cards = []
+        remainder.add_card(top_card)
+        remainder.nr_of_card_types = {"H": 0, "S": 0, "D": 0, "C": 0, "8": 0}
 
     def __len__(self):
         return len(self.deck_list)
 
 class Player():
-    NUMBER_CARDS = 30
-
     def __init__ (self, name):
         self.player = name
         self.hand = []
+        self.nr_of_card_types = {"H": 0, "S": 0, "D": 0, "C": 0, "8": 0, "2":0, "3":0, "4":0}
        
     def is_allowed(self, inp_card, top_card):
         return inp_card.suit==top_card.suit_value or inp_card.rank==top_card.rank
 
-    def add_card(self, denoting_card):
+    def add_card(self, denoting_card, remainder = None):
         if denoting_card is not None:
+            if denoting_card.rank == 8:
+                if self.nr_of_card_types["8"] > 0:
+                    denoting_card.priority = 570
+                else:
+                    denoting_card.priority = 700
+                self.nr_of_card_types["8"] += 1
+            else:
+                denoting_card.priority = 200
+                if denoting_card.suit == "H":
+                    self.nr_of_card_types["H"] += 1
+                elif denoting_card.suit == "S":
+                    self.nr_of_card_types["S"] += 1
+                elif denoting_card.suit == "C":
+                    self.nr_of_card_types["C"] += 1
+                else:
+                    self.nr_of_card_types["D"] += 1    
+
+                same_rank_count = 0
+                
+                for card in self.hand:
+                    if card.rank == denoting_card.rank:
+                        card.priority += 300
+                        same_rank_count += 1
+                    elif card.suit == denoting_card.suit:
+                        card.priority -= 1
+                if remainder is not None:
+                    for card in remainder.cards:
+                        if card.rank == denoting_card.rank:
+                            denoting_card.priority += 1
+                if same_rank_count == 1:
+                    self.nr_of_card_types["2"] += 1
+                elif same_rank_count == 2:
+                    self.nr_of_card_types["2"] -= 1
+                    self.nr_of_card_types["3"] += 1
+                    if self.nr_of_card_types["3"] > 1:
+                        denoting_card.priority = 500
+                        same_rank_count = 0
+                elif same_rank_count == 3:
+                    self.nr_of_card_types["3"] -= 1
+                    self.nr_of_card_types["4"] += 1
+                    if self.nr_of_card_types["4"] > 1:
+                        denoting_card.priority = 550
+                        same_rank_count = 0                    
+                
+                denoting_card.priority += 300 * same_rank_count
+                denoting_card.priority -= self.nr_of_card_types[denoting_card.suit]
             self.hand.append(denoting_card)
 
+
     def remove_card(self, denoting_card):
+        if denoting_card.rank == 8:
+            self.nr_of_card_types["8"] -= 1
+        elif denoting_card.suit == "H":
+            self.nr_of_card_types["H"] -= 1
+        elif denoting_card.suit == "S":
+            self.nr_of_card_types["S"] -= 1
+        elif denoting_card.suit == "C":
+            self.nr_of_card_types["C"] -= 1
+        else:
+            self.nr_of_card_types["D"] -= 1    
+        for card in self.hand:
+            if card.suit == denoting_card.suit:
+                card.priority += 1
+
         self.hand.remove(denoting_card)
 
     def __str__(self):
@@ -136,7 +210,6 @@ class Player():
         card.card_name1 = "|   |"
         card.card_name2 = "| {} |".format(new_suit)
         card.card_name3 = "|   |"
-
 
 class PlayableCharecter(Player):
     def __init__(self, player):
@@ -270,28 +343,44 @@ class NPC(Player):
     def __init__(self, player):
         Player.__init__(self, player)
         self.available_card = []
+        self.av_card_to_spare = []
 
     def print_status(self, remainder):
         print(self.player +" now has "+ str(len(self.hand)) + " cards left")
 
-    def get_available_cards(self, top_card):
+    def get_available_cards(self, top_card, skip = False):
         available_card_list = []
+        self.av_card_to_spare = []
         for card in self.hand:
             if self.is_allowed(card, top_card) or card.rank == 8:
-                available_card_list.append(card)
+                if skip is True and card.priority > 600:
+                    self.av_card_to_spare.append(card)
+                else:
+                    available_card_list.append(card)
         return available_card_list
     
-    def draw_cards_if_needed(self, remainder, deck):
-        self.available_card = self.get_available_cards(remainder.get_card())
+    def draw_cards_if_needed(self, remainder, deck, skip = False):
+        self.available_card = self.get_available_cards(remainder.get_card(), skip)
         draw_counter = 0
+
+        if len(self.hand) < 5 and len(self.av_card_to_spare) > 0:
+            if len(self.hand) == 1 and self.hand[0].rank == 8:
+                self.available_card = self.av_card_to_spare
+                return
+
+            for i in range(2,5): # skoður hvort hægt se að enda leikinn
+                if len(self.hand) == i and self.nr_of_card_types[str(i)] > 0 and len(self.av_card_to_spare) > 0:
+                    self.available_card = self.av_card_to_spare
+                    return
+
         while len(self.available_card) == 0 and draw_counter < 3:   
             prev_size = len(self.hand)
-            self.add_card(deck.deal(remainder)) 
-            draw_counter +=1
+            self.add_card(deck.deal(remainder), remainder) 
+            draw_counter += 1
             if prev_size == len(self.hand):  
                 draw_counter = 3  
             card = self.hand[-1]
-            if self.is_allowed(card, remainder.get_card()) or card.rank == 8:
+            if self.is_allowed(card, remainder.get_card()) or (card.rank == 8 and self.nr_of_card_types["8"] > 1):
                 self.available_card.append(card)
         if draw_counter == 3:
             print(self.player, "passed")
@@ -306,7 +395,7 @@ class Easy(NPC):
             card = self.available_card[0]
             self.remove_card(card)
             if card.rank == 8:
-                choice = random.choice(["S","C","H","D"])
+                choice = random.choice(["1","2","3","4"])
                 self.change_value_of_8(card, choice)
             
             remainder.add_card(card)
@@ -316,16 +405,58 @@ class Hard(NPC):
     def __init__(self, player):
         Player.__init__(self, player)
         
+    def best_choice_list(self):
+        s = self.nr_of_card_types["S"]
+        c = self.nr_of_card_types["C"]
+        d = self.nr_of_card_types["D"]
+        h = self.nr_of_card_types["H"]
+        lis = [s,c,d,h]
+        lis2 = []
+        lis.sort()
+        
+        for i in range(4):
+            if s == lis[i] and "S" not in lis2:
+                lis2.append("S")
+            elif c == lis[i] and "C" not in lis2:
+                lis2.append("C")
+            elif d == lis[i] and "D" not in lis2:
+                lis2.append("D")
+            else:
+                lis2.append("H")
+        return lis2
+
     def player_turn(self, remainder, deck):
-        self.draw_cards_if_needed(remainder, deck)
+        self.draw_cards_if_needed(remainder, deck, True)
         if len(self.available_card) > 0:
-            card = self.available_card[0]
-            self.remove_card(card)
-            if card.rank == 8:
-                choice = random.choice(["S","C","H","D"])
-                self.change_value_of_8(card, choice)
-            
-            remainder.add_card(card)
+            choice_list = self.best_choice_list()
+            min_card = self.available_card[0]
+            for card in self.available_card:
+                if card.priority < min_card.priority:
+                    min_card = card
+            card_list = [min_card]
+            if min_card.rank == 8:
+                choice = choice_list[0]
+                self.change_value_of_8(min_card, choice)
+                self.remove_card(min_card)
+                remainder.add_card(min_card)
+
+            else:
+                for card in self.hand:
+                    if min_card.rank == card.rank and min_card is not card:
+                        card_list.append(card)
+                if len(card_list) > 1:
+                    self.nr_of_card_types[str(len(card_list))] -= 1
+                    if len(card_list) > 2:
+                        for i in range(1, len(card_list)):
+                            for j in range(3):
+                                if card_list[i].suit == choice_list[j]:
+                                    top_card = card_list[i]
+                                    card_list.remove(top_card)
+                                    card_list.append(top_card)
+                for card in card_list:
+                    self.remove_card(card)
+                    remainder.add_card(card)
+
         self.print_status(remainder)
 
 def bua_til_leik():
@@ -336,10 +467,11 @@ def bua_til_leik():
     is_preset = input("Do you want preset game (Y/N): ").upper()
     if is_preset == "Y":
         player1 = PlayableCharecter("Player1")
-        players.append(player1)
-        npc1 = Easy("NPC1")
+       
+        npc1 = Hard("NPC1")
         players.append(npc1)
-        nr_cards = 5
+        players.append(player1)
+        nr_cards = 10
     else:
 
         while True:
@@ -378,6 +510,7 @@ def bua_til_leik():
     return deck, remainder, players
 
 def main():
+    random.seed(17)
     deck, remainder, players = bua_til_leik()
     again = True
     while again == True:
