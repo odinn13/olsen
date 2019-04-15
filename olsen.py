@@ -307,7 +307,7 @@ class PlayableCharecter(Player):
         if suit in ["H","D","S","C"]:
             if rank in ["A","J","Q","K"] or (rank.isdigit() and 1 <= int(rank) <= 13):
                 for card in self.hand:
-                    if suit == card.suit and rank == card.rank_name:
+                    if suit == card.suit and (rank == card.rank_name or rank == str(card.rank)):
                         return card
         return False
 
@@ -671,7 +671,7 @@ def create_game():
 
         nr_cards = ""
 
-        max_nr_cards = 52//(n_inp+p_inp)
+        max_nr_cards = 40//(n_inp+p_inp)
         while True:
             nr_cards = input("How many card on hand? (MAX {}): ".format(max_nr_cards))
             if nr_cards.isdigit() and int(nr_cards) <= max_nr_cards:
@@ -684,7 +684,31 @@ def create_game():
     remainder = Remainder(deck.deal())
     return deck, remainder, players
 
+def print_help():
+    card1 = Card(11, "S")
+    print("Welcome to olsen\n")
+    print("To use a card just type the rank and the suit of the card")
+    print("use 's' for spade")
+    print("use 'h' for heart")
+    print("use 'c' for club")
+    print("use 'd' for diamond")
+    print("For example, if you want to use this card")
+    print(card1)
+    print("\nthen type 'js' or '11s'.")
+    card2 = Card(11, "H")
+    print("If you want to use more then one card then separate the cards with space")
+    print("For example")
+    print(card1.card_name1, card2.card_name1,"\n" + card1.card_name2, card2.card_name2, "\n"+ card1.card_name3, card2.card_name3)
+    print("\nthen type 'js jh' or '11s 11h'.")
+    print("If a card looks like this")
+    print("|   |")
+    print("| ♣ |")
+    print("|   |")
+    print("that means the last player used an '8' and changed the suit")
+
+
 def main():
+    print_help()
     game_counter = 0
     easy_wins = 0       
     hard_wins = 0
