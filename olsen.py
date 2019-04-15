@@ -1,4 +1,5 @@
 import random
+TEST = False
 
 class Card():
     def __init__(self, rank = 0, suit = "", priority = None):
@@ -423,7 +424,7 @@ class Medium(NPC):
                 remainder.add_card(card)
         self.print_status(remainder)
         if self.can_win() or len(self.hand) == 1:
-            print("Óslen")
+            print("\nÓslen !!!!!!!!!!")
 
 class Easy(NPC):
     def __init__(self, player):
@@ -600,12 +601,16 @@ class VeryHard(NPC):
         if self.can_win() or len(self.hand) == 1:
             print("Óslen")
 
-def bua_til_leik():
+
+def create_game():
+    global TEST
     deck = Deck()
     deck.shuffle()
     players = []
-    
-    is_preset = input("Do you want preset game (Y/N): ").upper()
+    if TEST is False:
+        is_preset = input("Do you want preset game (Y/N): ").upper()
+    else:
+        is_preset = "T"
     if is_preset == "Y":
         player1 = PlayableCharecter("Player1")
         players.append(player1)
@@ -622,7 +627,8 @@ def bua_til_leik():
         players.append(npc2)
         players.append(npc3)
         players.append(npc4)
-        nr_cards = 10
+        nr_cards = 5
+        TEST = True
     else:
         while True:
             p_inp = input("How many playable charecters: ")
@@ -679,33 +685,44 @@ def bua_til_leik():
     return deck, remainder, players
 
 def main():
-    # easy_wins = 0
-    # hard_wins = 0
-    # medium_wins = 0
-    # imp_wins = 0
-    # for _ in range(1000):
-    deck, remainder, players = bua_til_leik()
-    again = True
-    while again == True:
-        for player in players:           
-            player.player_turn(remainder, deck)
-            if len(player.hand) == 0:
-                print("PLAYER", player.player, "WON!!!!!!!")
-                # if player.player == "NPC hard":
-                #     hard_wins += 1
-                # elif player.player == "NPC medium":
-                #     medium_wins += 1
-                # elif player.player == "NPC easy":
-                #     easy_wins += 1
-                # else:
-                #     imp_wins += 1
-                again = False
+    game_counter = 0
+    easy_wins = 0       
+    hard_wins = 0
+    medium_wins = 0
+    imp_wins = 0
+    pl_wins = 0
+    while game_counter < 1000:
+        deck, remainder, players = create_game()
+        again = True
+        while again == True :
+            for player in players:           
+                player.player_turn(remainder, deck)
+                if len(player.hand) == 0:
+                    print("PLAYER", player.player, "WON!!!!!!!")
+                    if player.player == "NPC hard":
+                        hard_wins += 1
+                    elif player.player == "NPC medium":
+                        medium_wins += 1
+                    elif player.player == "NPC easy":
+                        easy_wins += 1
+                    elif player.player == "NPC v_hard":
+                        imp_wins += 1
+                    else:
+                        pl_wins += 1
+                    again = False
+                    game_counter += 1
+                    break
+                print("_"*50)
+        if TEST is False:
+            if input("Wanna play again (Y/N)").upper() != "Y":
                 break
-            print("_"*80)
-    # print("easy", easy_wins)
-    # print("medium", medium_wins)
-    # print("hard", hard_wins)
-    # print("imp", imp_wins)
+    if TEST is True:
+        print("player", pl_wins)
+        print("easy", easy_wins)
+        print("medium", medium_wins)
+        print("hard", hard_wins)
+        print("very hard", imp_wins)
+        input("")
 
 
 main()
